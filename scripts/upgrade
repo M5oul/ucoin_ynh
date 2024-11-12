@@ -1,27 +1,19 @@
 #!/bin/bash
 
-#=================================================
-# GENERIC START
-#=================================================
-# IMPORT GENERIC HELPERS
-#=================================================
-
 source _common.sh
 source /usr/share/yunohost/helpers
 
 #=================================================
-# STANDARD UPGRADE STEPS
-#=================================================
 # STOP SYSTEMD SERVICE
 #=================================================
-ynh_script_progression --message="Stopping a systemd service…"
+ynh_script_progression "Stopping a systemd service…"
 
-ynh_systemd_action --service_name=$app --action="stop" --log_path=systemd
+ynh_systemctl --service=$app --action="stop" --log_path=systemd
 
 #=================================================
 # ENSURE DOWNWARD COMPATIBILITY
 #=================================================
-ynh_script_progression --message="Ensuring downward compatibility…"
+ynh_script_progression "Ensuring downward compatibility…"
 
 if [ -z "$(ls -A "$data_dir")" ]; then
     mv "/root/.config/duniter"/{,.}* "$data_dir"
@@ -29,49 +21,47 @@ if [ -z "$(ls -A "$data_dir")" ]; then
     chown -R "$app:www-data" "$data_dir"
 fi
 
-if ynh_compare_current_package_version --comparison lt --version 1.8.7~ynh1; then
+if ynh_app_upgrading_from_version_before 1.8.7~ynh1; then
     run_duniter reset data
 fi
 
 #=================================================
-# SPECIFIC UPGRADE
-#=================================================
 # INSTALL DUNITER
 #=================================================
-ynh_script_progression --message="Installation of Debian package of Duniter…"
+ynh_script_progression "Installation of Debian package of Duniter…"
 
 ynh_setup_source --dest_dir="$install_dir"
-ynh_exec_warn_less dpkg -i "$install_dir/duniter-server.deb"
-ynh_secure_remove "$install_dir/duniter-server.deb"
+ynh_hide_warnings dpkg -i "$install_dir/duniter-server.deb"
+ynh_safe_rm "$install_dir/duniter-server.deb"
 
 #=================================================
 # UPDATE DUNITER CONFIG FILE
 #=================================================
-ynh_script_progression --message="Configure Duniter…"
+ynh_script_progression "Configure Duniter…"
 
 CONFIGURE_DUNITER
 
 #=================================================
 # REAPPLY SYSTEM CONFIGURATIONS
 #=================================================
-ynh_script_progression --message="Upgrading system configurations related to $app..." --weight=1
+ynh_script_progression "Upgrading system configurations related to $app..."
 
 # Create a dedicated NGINX config
-ynh_add_nginx_config
+ynh_config_add_nginx
 
 # Create a dedicated systemd config
-ynh_add_systemd_config
+ynh_config_add_systemd
 yunohost service add "$app"
 
 #=================================================
 # START SYSTEMD SERVICE
 #=================================================
-ynh_script_progression --message="Starting a systemd service…"
+ynh_script_progression "Starting a systemd service…"
 
-ynh_systemd_action --service_name="$app" --action="start" --log_path=systemd --line_match="Web administration accessible"
+ynh_systemctl --service="$app" --action="start" --log_path=systemd --wait_until="Web administration accessible"
 
 #=================================================
 # END OF SCRIPT
 #=================================================
 
-ynh_script_progression --message="Upgrade of $app completed"
+ynh_script_progression "Upgrade of $app completed"
